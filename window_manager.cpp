@@ -14,4 +14,19 @@ unique_ptr<WindowManager> WindowManager::Create(const string& display_str) {
 	Display* display = XOpenDisplay(display_c_str);
 	if (display == nullptr) {
 		cerr << "Failed to open X Display" << XDisplayName(display_c_str) << endline;
+		return nullptr;
+	}
+	return unique_ptr<WindowManager>(new WindowManager(display));
+}
 
+WindowManager::WindowManager(Display* display): display_(CHECK_NOTNULL(display)), root_(DefaultRootWindow(display_)), WM_PROTOCOLS(XInternAtom(display_, "WM_PROTOCOLS", false)), WM_DELETE_WINDOW(XInternAtom(display_, "WM_DELETE_WINDOW", false)) {}
+WindowManager::~WindowManager() {
+	XCloseDisplay(display_);
+}
+
+void WindowManager::Run() {
+	
+
+
+
+}
