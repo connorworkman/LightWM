@@ -127,9 +127,9 @@ char** argv;
 				width = report.xconfigure.width;
 				height = report.xconfigure.height;
 				if ((width < size_hints->min_width) || (height < size_hints->min_height)) {
-					window_size == TOO_SMALL;
+					window_size = TOO_SMALL;
 				} else {
-					window_size == BIG_ENOUGH;
+					window_size = BIG_ENOUGH;
 				}
 				break;
 			case ButtonPress:
@@ -212,7 +212,8 @@ unsigned int win_width, win_height;
 	len2 = strlen(cd_width);
 	len3 = strlen(cd_depth);
 
-	initial_y_offset = (int) win_width/4;
+	initial_y_offset = win_height/2 - font_height - font_info->descent;
+	x_offset = (int) win_width/4;
 	XDrawString(display,win,gc,x_offset,(int)initial_y_offset,string4,len4);
 	XDrawString(display,win,gc,x_offset,(int)initial_y_offset+font_height,cd_height,len1);
 	XDrawString(display,win,gc,x_offset,(int)initial_y_offset+font_height*2,cd_width,len2);
