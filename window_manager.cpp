@@ -4,24 +4,24 @@ extern "C" {
 }
 #include <cstring>
 #include <algorithm>
-#include <util.hpp>
+#include "util.hpp"
 
 using namespace std;
 bool WindowManager::wm_detected_;
-mutex WindowManager::wm_dected_mutex_;
+mutex WindowManager::wm_detected_mutex_;
 
 unique_ptr<WindowManager> WindowManager::Create(const string& display_str) {
 	const char* display_c_str = display_str.empty() ? nullptr : display_str.c_str();
 	Display* display = XOpenDisplay(display_c_str);
 	if (display == nullptr) {
-		cerr << "Failed to open X Display" << XDisplayName(display_c_str) << endline;
+		cerr << "Failed to open X Display" << XDisplayName(display_c_str) << endl;
 		return nullptr;
 	}
 	return unique_ptr<WindowManager>(new WindowManager(display));
 }
 
 WindowManager::WindowManager(Display* display) : 
-    display_(CHECK_NOTNULL(display)), 
+    display_(display),
     root_(DefaultRootWindow(display_)), 
     WM_PROTOCOLS(XInternAtom(display_, "WM_PROTOCOLS", false)),
     WM_DELETE_WINDOW(XInternAtom(display_, "WM_DELETE_WINDOW", false)) {
@@ -36,7 +36,7 @@ void WindowManager::Run() {
         lock_guard<mutex> lock(wm_detected_mutex_);
         wm_detected_ = false;
         XSetErrorHandler(&WindowManager::OnWMDetected);
-        XSelectInput(display_,root_,SubstructureRedirectMask | SubsstructureNotifyMask);
+        XSelectInput(display_, root_, SubstructureRedirectMask | SubstructureNotifyMask);
         XSync(display_, false);
         if (wm_detected_) {//change this reference style
             cerr << "There is already a window manager for display " << XDisplayString(display_);
@@ -49,15 +49,23 @@ void WindowManager::Run() {
     Window returned_root, returned_parent;
     Window* top_level_window;
     unsigned int num_top_level_windows;
-    CHECK(XQueryTree(display_, root_, &returned_root, &returned_parent,
-                &top_level_windows, &num_top_level_windows));
-    CHECK_EQ(returned_root, root_);
-
-    for (unsigned int i = 0; i < num_top_level_windows; ++i) {
-        Frame(top_level_windows[i]);
+    XQueryTree(display_, root_, &returned_root, &returned_parent,
+      &top_level_window, &num_top_level_windows);
+    if (XQueryTree == NULL) {
+        //FIXME
+        cerr << "XQueryTree was NULL" << endl;
+        exit(-1);
+    }
+    if (returned_root != root_) {
+        cerr << "Returned root did not pass assertion" << endl;
+        exit(-1);
     }
 
-    XFree(top_level_windows);
+    for (unsigned int i = 0; i < num_top_level_windows; ++i) {
+        Frame(top_level_window[i]);
+    }
+
+    XFree(top_level_window);
     XUngrabServer(display_);
 
     for(;;) {
@@ -75,13 +83,13 @@ void WindowManager::Run() {
                 OnReparentNotify(event.xreparent);
                 break;
             case MapNotify:
-                OnReparentNotify(event.xmap);
-                break;
-            case UnmapNotify:
                 OnMapNotify(event.xmap);
                 break;
+            case UnmapNotify:
+                OnUnmapNotify(event.xunmap);
+                break;
             case ConfigureNotify:
-                OnConfigureNotify(event.xunmap);
+                OnConfigureNotify(event.xconfigure);
                 break;
             case MapRequest:
                 OnMapRequest(event.xmaprequest);
@@ -93,7 +101,7 @@ void WindowManager::Run() {
                 OnButtonPress(event.xbutton);
                 break;
             case MotionNotify:
-                while (XCheckTypeWindowEvent(display_, event.xmotion.window, MotionNotify, &event)) {}
+                while (XCheckTypedWindowEvent(display_, event.xmotion.window, MotionNotify, &event)) {}
                 OnMotionNotify(event.xmotion);
                 break;
             case KeyPress:
@@ -112,24 +120,33 @@ void WindowManager::Frame(Window w) {
     const unsigned int BORDER_WIDTH = 3;
     const unsigned long BORDER_COLOR = 0xff0000;
     const unsigned long BG_COLOR = 0x0000ff;
-    CHECK(!clients_.count(w));
+    if (clients_.count(w)) {
+        cerr << "Aborting." << endl;
+        exit(-1);
+    }
+
     XWindowAttributes x_window_attrs;
-    CHECK(XGetWindowAttributes(display_, w, &window_attrs));
+    if (!XGetWindowAttributes(display_, w, &x_window_attrs)) {
+        cerr << "Aborting." << endl;
+        exit(-1);
+    }
     const Window frame = XCreateSimpleWindow(display_, root_, x_window_attrs.x, x_window_attrs.y, x_window_attrs.width, x_window_attrs.height, BORDER_WIDTH, BORDER_COLOR, BG_COLOR);
 
-    XSelectInpput(display_, frame, SubstructureRedirectMask | SubstructureNotifyMask);
+    XSelectInput(display_, frame, SubstructureRedirectMask | SubstructureNotifyMask);
     XAddToSaveSet(display_, w);
     XReparentWindow(display_, w, frame, 0, 0);
     XMapWindow(display_, frame);
     
     clients_[w] = frame;
-    XGrabButton(display_, Button1, ModlMask, w, false, ButtonPressMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None, None);
-    XGrabKey(display_, XKeysymToKeycode(display_ XK_F4), Mod1Mask, w, false, GrabModeAsync, GrabModeAsync);
+    XGrabButton(display_, Button1, Mod1Mask, w, false, ButtonPressMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None, None);
+    XGrabKey(display_, XKeysymToKeycode(display_, XK_F4), Mod1Mask, w, false, GrabModeAsync, GrabModeAsync);
     XGrabKey(display_, XKeysymToKeycode(display_, XK_Tab), Mod1Mask, w, false, GrabModeAsync, GrabModeAsync);
 }
 
 void WindowManager::Unframe(Window w) {
-    CHECK(client_.count(w));
+    if (clients_.count(w) == 0) {
+        cerr << "Client count did not pass assertion" << endl;
+    }
     const Window frame = clients_[w];
     XUnmapWindow(display_, frame);
     XReparentWindow(display_, w, root_, 0, 0);
@@ -159,7 +176,7 @@ void WindowManager::OnMapRequest(const XMapRequestEvent &event) {
     XMapWindow(display_, event.window);
 }
 
-void WindowManager::OnConfigureRequest(const XConfigureRequest Event &event) {
+void WindowManager::OnConfigureRequest(const XConfigureRequestEvent &event) {
     XWindowChanges changes;
     changes.x = event.x;
     changes.y = event.y;
@@ -178,13 +195,18 @@ void WindowManager::OnConfigureRequest(const XConfigureRequest Event &event) {
 }
 
 void WindowManager::OnButtonPress(const XButtonEvent &event) {
-    CHECK(clients_.count(event.window));
+    //CHECK(clients_.count(event.window));
+    if (clients_.count(event.window) == 0) {
+        cerr << "Client count for the event's window did not pass assertion (>0)" << endl;
+    }
     const Window frame = clients_[event.window];
-    drag_start_pos = Position<int>(event.x_root, event.y_root);
+    drag_start_pos_ = Position<int>(event.x_root, event.y_root);
     Window returned_root;
     int x, y;
     unsigned width, height, border_width, depth;
-    CHECK(XGetGeometry(display_, frame, &returned_root, &x, &y, &width, &height, &border_width, &depth));
+    if (!XGetGeometry(display_, frame, &returned_root, &x, &y, &width, &height, &border_width, &depth)) {
+        cerr << "XGetGeometry failed for some reason" << endl;
+    }
     drag_start_frame_pos_ = Position<int>(x, y);
     drag_start_frame_size_ = Size<int>(width, height);
     XRaiseWindow(display_, frame);
@@ -192,15 +214,15 @@ void WindowManager::OnButtonPress(const XButtonEvent &event) {
 
 void WindowManager::OnButtonRelease(const XButtonEvent &event) {}
 void WindowManager::OnMotionNotify(const XMotionEvent &event) {
-    CHECK(clients_.count(event.window));
+    //CHECK(clients_.count(event.window));
     const Window frame = clients_[event.window];
     const Position<int> drag_pos(event.x_root, event.y_root);
     const Vector2D<int> delta = drag_pos - drag_start_pos_;
-    if (e.state & Button1Mask) {
+    if (event.state & Button1Mask) {
         const Position<int> dest_frame_pos = drag_start_frame_pos_ + delta;
-        XMoveWindow(display_, frame, dest_frame_pos.x, des_frame_pos.y);
+        XMoveWindow(display_, frame, dest_frame_pos.x, dest_frame_pos.y);
     } else if (event.state & Button3Mask) {
-        const Vector2d<int> size_delta(max(delta.x, -drag_start_frame_size_.width), max(delta.y, -drag_start_frame_size_.height));
+        const Vector2D<int> size_delta(max(delta.x, -drag_start_frame_size_.width), max(delta.y, -drag_start_frame_size_.height));
         const Size<int> dest_frame_size = drag_start_frame_size_ + size_delta;
         XResizeWindow(display_, frame, dest_frame_size.width, dest_frame_size.height);
         XResizeWindow(display_, event.window, dest_frame_size.width, dest_frame_size.height);
@@ -210,8 +232,8 @@ void WindowManager::OnMotionNotify(const XMotionEvent &event) {
 void WindowManager::OnKeyPress(const XKeyEvent &e) {
     if ((e.state & Mod1Mask) && (e.keycode == XKeysymToKeycode(display_, XK_F4))) {
         Atom* supported_protocols;
-        int num_suppoerted_protocols;
-        if (XGetWMProtocols(display_, e.window, &supported_protocols, &num_spported_protocols) && (find(supported_protocols)) {
+        int num_supported_protocols;
+        if (XGetWMProtocols(display_, e.window, &supported_protocols, &num_supported_protocols) && (find(supported_protocols, supported_protocols + num_supported_protocols, WM_DELETE_WINDOW) != supported_protocols + num_supported_protocols)) {
             cerr << "Deleting window" << e.window << endl;
             XEvent msg;
             memset(&msg, 0, sizeof(msg));
@@ -220,14 +242,14 @@ void WindowManager::OnKeyPress(const XKeyEvent &e) {
             msg.xclient.window = e.window;
             msg.xclient.format = 32;
             msg.xclient.data.l[0] = WM_DELETE_WINDOW;
-            CHECK(XSendEvent(display_, e.window, false, 0, &msg));
+            //CHECK(XSendEvent(display_, e.window, false, 0, &msg));
         } else {
             cerr << "Killing window " << e.window << endl;
             XKillClient(display_, e.window);
         }
     } else if ((e.state & Mod1Mask) && (e.keycode == XKeysymToKeycode(display_, XK_Tab))) {
         auto i = clients_.find(e.window);
-        CHECK(i != clients_.end());
+        //CHECK(i != clients_.end());
         ++i;
         if (i == clients_.end()) {
             i = clients_.begin();
@@ -241,7 +263,7 @@ void WindowManager::OnKeyRelease(const XKeyEvent &e) {}
 
 int WindowManager::OnXError(Display* display, XErrorEvent *e) {
     const int MAX_ERROR_TEXT_LENGTH = 1024;
-    char error_test[MAX_ERROR_TEXT_LENGTH];
+    char error_text[MAX_ERROR_TEXT_LENGTH];
     XGetErrorText(display, e->error_code, error_text, sizeof(error_text));
     cerr << "Received X error: " << endl;
     cerr << "   Request code: " << int(e->request_code) << endl;
@@ -252,11 +274,7 @@ int WindowManager::OnXError(Display* display, XErrorEvent *e) {
 }
 
 int WindowManager::OnWMDetected(Display* display, XErrorEvent *e) {
-    CHECK_EQ(static_cast<int>(e->error_code), BadAccess);
-    wm_detected = true;
+    //CHECK_EQ(static_cast<int>(e->error_code), BadAccess);
+    wm_detected_ = true;
     return 0;
 }
-    
-
-
-
