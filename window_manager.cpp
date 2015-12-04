@@ -52,7 +52,6 @@ void WindowManager::Run() {
     XQueryTree(display_, root_, &returned_root, &returned_parent,
       &top_level_window, &num_top_level_windows);
     if (XQueryTree == NULL) {
-        //FIXME
         cerr << "XQueryTree was NULL" << endl;
         exit(-1);
     }
