@@ -1,5 +1,5 @@
-#ifndef UTIL_HPP
-#define UTIL_HPP
+#ifndef EVENTNAMES_HPP
+#define EVENTNAMES_HPP
 
 extern "C" {
 #include <X11/Xlib.h>
@@ -104,10 +104,8 @@ extern std::string XConfigureWindowValueMaskToString(unsigned long value_mask);
 // Returns the name of an X request code.
 extern std::string XRequestCodeToString(unsigned char request_code);
 
+//implementation
 
-/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- *                               IMPLEMENTATION                              *
- * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 #include <algorithm>
 #include <vector>
 #include <sstream>

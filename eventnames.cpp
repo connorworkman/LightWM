@@ -1,6 +1,6 @@
-#include "util.hpp"
+#include "eventnames.hpp"
 #include <algorithm>
-#include <sstream>
+#include <string>
 #include <vector>
 using namespace std;
 
@@ -110,7 +110,7 @@ string ToString(const XEvent& e) {
       properties.emplace_back("keycode", ToString(e.xkey.keycode));
       break;
     default:
-      //FIXME there are many unused event types to handle
+      //TODO there are many unused event types to handle
       break;
   }
 
@@ -119,7 +119,8 @@ string ToString(const XEvent& e) {
         [] (const pair<string, string> &pair) {
         return pair.first + ": " + pair.second;});
   string result;
-  result = X_EVENT_TYPE_NAMES[e.type] + " ## " + properties_string + " ##";
+  string seperator = " ## ";
+  result = X_EVENT_TYPE_NAMES[e.type] + seperator + properties_string + seperator;
   return result;
 }
 

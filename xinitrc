@@ -1,6 +1,6 @@
 xeyes &
-xclock &
+xclock -d &
 xterm &
 sleep 2 &&
-exec ~/LIGHTWM/basicwm/basicwin &
+exec ~/LIGHTWM/basicwin/basicwin &
 exec ~/LIGHTWM/lightwm

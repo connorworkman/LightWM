@@ -5,7 +5,7 @@
 #include <mutex>
 #include <string>
 #include <unordered_map>
-#include "util.hpp"
+#include "eventnames.hpp"
 extern "C" {
 #include <X11/Xlib.h>
 }
@@ -40,9 +40,9 @@ class WindowManager {
 		static bool wm_detected_;
         static mutex wm_detected_mutex_;
 
-		Display* display_;
-		const Window root_;
-		unordered_map<Window, Window> clients_;
+		Display* display_handle;
+		const Window root_handle;
+		unordered_map<Window, Window> clients_handle;
 		Position<int> drag_start_pos_;
 		Position<int> drag_start_frame_pos_;
 		Size<int> drag_start_frame_size_;
