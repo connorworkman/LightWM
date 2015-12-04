@@ -1,4 +1,4 @@
-#include "window_manager.hpp"
+#include "winman.hpp"
 extern "C" {
 #include <X11/Xutil.h>
 }

@@ -1,5 +1,5 @@
-#ifndef WINDOW_MANAGER_HPP
-#define WINDOW_MANAGER_HPP
+#ifndef WINMAN_HPP
+#define WINMAN_HPP
 #include <iostream>
 #include <memory>
 #include <mutex>

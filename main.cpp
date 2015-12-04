@@ -1,5 +1,5 @@
 #include <cstdlib>
-#include "window_manager.hpp"
+#include "winman.hpp"
 #include <memory>
 #include <iostream>
 int main(int argc, char** argv) {
