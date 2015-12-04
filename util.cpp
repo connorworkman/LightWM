@@ -3,6 +3,8 @@
 #include <sstream>
 #include <vector>
 using namespace std;
+
+/* Print event information */
 string ToString(const XEvent& e) {
   static const char* const X_EVENT_TYPE_NAMES[] = {
       "",
@@ -113,13 +115,12 @@ string ToString(const XEvent& e) {
   }
 
   /* Print debugging info for each event. */
-  const string properties_string = Join(
-      properties, ", ", [] (const pair<string, string> &pair) {
-        return pair.first + ": " + pair.second;
-      });
-  ostringstream out;
-  out << X_EVENT_TYPE_NAMES[e.type] << " ## " << properties_string << " ##";
-  return out.str();
+  const string properties_string = Join(properties, ", ", 
+        [] (const pair<string, string> &pair) {
+        return pair.first + ": " + pair.second;});
+  string result;
+  result = X_EVENT_TYPE_NAMES[e.type] + " ## " + properties_string + " ##";
+  return result;
 }
 
 string XConfigureWindowValueMaskToString(unsigned long value_mask) {
