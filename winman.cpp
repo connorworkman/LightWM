@@ -138,7 +138,7 @@ void WindowManager::Frame(Window w) {
     
     clients_[w] = frame;
     XGrabButton(display_, Button1, Mod1Mask, w, false, ButtonPressMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None, None);
-    XGrabKey(display_, XKeysymToKeycode(display_, XK_F4), Mod1Mask, w, false, GrabModeAsync, GrabModeAsync);
+    XGrabKey(display_, XKeysymToKeycode(display_, XK_Q), Mod1Mask, w, false, GrabModeAsync, GrabModeAsync);
     XGrabKey(display_, XKeysymToKeycode(display_, XK_Tab), Mod1Mask, w, false, GrabModeAsync, GrabModeAsync);
 }
 
@@ -229,7 +229,7 @@ void WindowManager::OnMotionNotify(const XMotionEvent &event) {
 }
 
 void WindowManager::OnKeyPress(const XKeyEvent &e) {
-    if ((e.state & Mod1Mask) && (e.keycode == XKeysymToKeycode(display_, XK_F4))) {
+    if ((e.state & Mod1Mask) && (e.keycode == XKeysymToKeycode(display_, XK_Q))) {
         Atom* supported_protocols;
         int num_supported_protocols;
         if (XGetWMProtocols(display_, e.window, &supported_protocols, &num_supported_protocols) && (find(supported_protocols, supported_protocols + num_supported_protocols, WM_DELETE_WINDOW) != supported_protocols + num_supported_protocols)) {
@@ -241,7 +241,10 @@ void WindowManager::OnKeyPress(const XKeyEvent &e) {
             msg.xclient.window = e.window;
             msg.xclient.format = 32;
             msg.xclient.data.l[0] = WM_DELETE_WINDOW;
-            //CHECK(XSendEvent(display_, e.window, false, 0, &msg));
+            if (XSendEvent(display_, e.window, false, 0, &msg))
+            {
+                cerr << "Failed to send event to X (delete message)" << endl;
+            }
         } else {
             cerr << "Killing window " << e.window << endl;
             XKillClient(display_, e.window);
