@@ -1,0 +1,27 @@
+scons: Reading SConscript files ...
+scons: done reading SConscript files.
+scons: Building targets ...
+g++ -o winman.o -c -std=c++1y -Wall -g winman.cpp
+g++ -o lightwm eventnames.o main.o winman.o -lX11
+scons: done building targets.
+Event: "CreateNotify ## window: 10485761, parent: 670, size: 150x100, position: (0, 0), border_width: 1, override_redirect: 0 ## " occurred.
+Event: "UnmapNotify ## window: 4194314, event: 670, from_configure: 0 ## " occurred.
+Event: "ReparentNotify ## window: 4194314, parent: 10485761, position: (0, 0), override_redirect: 0 ## " occurred.
+Event: "ReparentNotify ## window: 4194314, parent: 10485761, position: (0, 0), override_redirect: 0 ## " occurred.
+Event: "MapNotify ## window: 4194314, event: 10485761, override_redirect: 0 ## " occurred.
+Event: "MapNotify ## window: 10485761, event: 670, override_redirect: 0 ## " occurred.
+Event: "CreateNotify ## window: 10485762, parent: 670, size: 484x316, position: (0, 0), border_width: 1, override_redirect: 0 ## " occurred.
+Event: "UnmapNotify ## window: 6291490, event: 670, from_configure: 0 ## " occurred.
+Event: "ReparentNotify ## window: 6291490, parent: 10485762, position: (0, 0), override_redirect: 0 ## " occurred.
+Event: "ReparentNotify ## window: 6291490, parent: 10485762, position: (0, 0), override_redirect: 0 ## " occurred.
+Event: "MapNotify ## window: 6291490, event: 10485762, override_redirect: 0 ## " occurred.
+Event: "MapNotify ## window: 10485762, event: 670, override_redirect: 0 ## " occurred.
+Event: "CreateNotify ## window: 10485763, parent: 670, size: 224x30, position: (0, 0), border_width: 1, override_redirect: 0 ## " occurred.
+Event: "UnmapNotify ## window: 8388619, event: 670, from_configure: 0 ## " occurred.
+Event: "ReparentNotify ## window: 8388619, parent: 10485763, position: (0, 0), override_redirect: 0 ## " occurred.
+Event: "ReparentNotify ## window: 8388619, parent: 10485763, position: (0, 0), override_redirect: 0 ## " occurred.
+Event: "MapNotify ## window: 8388619, event: 10485763, override_redirect: 0 ## " occurred.
+Event: "MapNotify ## window: 10485763, event: 670, override_redirect: 0 ## " occurred.
+Event: "MappingNotify ##  ## " occurred.
+Event: "KeyPress ## window: 6291490, state: 8, keycode: 36 ## " occurred.
+About to call execute

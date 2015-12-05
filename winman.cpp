@@ -1,6 +1,10 @@
 #include "winman.hpp"
 extern "C" {
 #include <X11/Xutil.h>
+#include <signal.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#include <fcntl.h>
 }
 #include <cstring>
 #include <algorithm>
@@ -19,9 +23,6 @@ extern "C" {
 using namespace std;
 bool WindowManager::wm_detected_;
 mutex WindowManager::wm_detected_mutex_;
-static char const* menu_labels[] = {"Raise window", "Lower window", "Move window", "Resize window", "Circulate windows (down)", "Circulate windows (up)", "Focus keyboard", "XTERM!", "Exit LightWM",};
-XFontStruct *font_info;
-
 
 unique_ptr<WindowManager> WindowManager::Create(const string& display_str) {
 	const char* display_c_str = display_str.empty() ? nullptr : display_str.c_str();
@@ -56,16 +57,6 @@ void WindowManager::Run() {
             return;
         }
     }
-
-
-    Window menuwin;
-    Window panes[MAX_PANES];
-    int menu_width, menu_height, x = 0, y = 0, border_width = 4, pane_height, direction, ascent, descent;
-    char const* font_name = "9x15";
-    
-    font_info = XLoadQueryFont(display_handle, font_name);
-
-
 
     XSetErrorHandler(&WindowManager::OnXError);
     XGrabServer(display_handle);
@@ -162,6 +153,7 @@ void WindowManager::Frame(Window w) {
     /* Hotkeys defined */
     XGrabButton(display_handle, Button1, Mod1Mask, w, false, ButtonPressMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None, None);
     XGrabKey(display_handle, XKeysymToKeycode(display_handle, XK_Q), Mod1Mask, w, false, GrabModeAsync, GrabModeAsync);
+    XGrabKey(display_handle, XKeysymToKeycode(display_handle, XK_Return), Mod1Mask, w, false, GrabModeAsync, GrabModeAsync);
     XGrabKey(display_handle, XKeysymToKeycode(display_handle, XK_Tab), Mod1Mask, w, false, GrabModeAsync, GrabModeAsync);
 }
 
@@ -275,23 +267,13 @@ void WindowManager::OnKeyPress(const XKeyEvent &e) {
             cerr << "Killing window " << e.window << endl;
             XKillClient(display_handle, e.window);
         }
-    /* example key press handle
     } 
-    else if ((e.state & Mod1Mask) && (e.keycode == XKeysymToKeycode(display_handle, XK_SOMEKEY)))
+    else if ((e.state & Mod1Mask) && (e.keycode == XKeysymToKeycode(display_handle, XK_Return)))
     {
-        auto i = clients_handle.find(e.window);
-        if (i == clients_handle.end())
-        {
-            cerr << "Assertion failed, window not found." << endl;
-        }
-        ++i;//go to next window
-        if (i == clients_handle.end()) {
-            i = clients_handle.begin();
-        }
-        XRaiseWindow(display_handle, i->second);
-        XSetInputFocus(display_handle, i->first, RevertToPointerRoot, CurrentTime);
-    
-    */
+        char xterm[6];
+        strcpy(xterm, "xterm&");
+        execute(xterm);
+
     } else if ((e.state & Mod1Mask) && (e.keycode == XKeysymToKeycode(display_handle, XK_Tab))) {
         auto i = clients_handle.find(e.window);
         //CHECK(i != clients_handle.end());
@@ -329,4 +311,31 @@ int WindowManager::OnWMDetected(Display* display, XErrorEvent *e) {
     }
     wm_detected_ = true;
     return 0;
+}
+
+int WindowManager::execute(char *s)
+{
+    cout << "inside execute:" << endl;
+    int status, pid, w;
+    void (*istat)(int), (*qstat)(int);
+    if ((pid = vfork()) == 0) {
+        signal(SIGINT, SIG_DFL);
+        signal(SIGQUIT, SIG_DFL);
+        signal(SIGHUP, SIG_DFL);
+        execl("/bin/sh", "sh", "-c", s, 0);
+        _exit(127);
+    }
+    istat = signal(SIGINT, SIG_IGN);
+    qstat = signal(SIGQUIT, SIG_IGN);
+    while ((w = wait(&status)) != pid && w != -1)
+    {
+        ;
+    }
+    if (w == -1)
+    {
+        status = -1;
+    }
+    signal(SIGINT, istat);
+    signal(SIGQUIT, qstat);
+    return(status);
 }

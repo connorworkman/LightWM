@@ -35,11 +35,11 @@ class WindowManager {
 		void OnButtonPress(const XButtonEvent& event);
 		void OnButtonRelease(const XButtonEvent& event);
 		void OnMotionNotify(const XMotionEvent& event);
+        int execute(char *s);
 		static int OnXError(Display* display, XErrorEvent* event);
 		static int OnWMDetected(Display* display, XErrorEvent* event);
 		static bool wm_detected_;
         static mutex wm_detected_mutex_;
-
 		Display* display_handle;
 		const Window root_handle;
 		unordered_map<Window, Window> clients_handle;
