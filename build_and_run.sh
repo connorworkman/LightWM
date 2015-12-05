@@ -3,7 +3,7 @@ scons lightwm
 XEPHYR=$(whereis -b Xephyr | cut -f2 -d' ')
 xinit ./xinitrc -- \
     "$XEPHYR" \
-        :100 \
+        :99 \
+        -screen 800x700 \
         -ac \
         -host-cursor
-        -screen 800x600
