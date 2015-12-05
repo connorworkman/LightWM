@@ -1,11 +1,10 @@
 #include "winman.hpp"
 extern "C" {
 #include <X11/Xutil.h>
-#include <stdio.h>
 #include <signal.h>
+#include <sys/wait.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <sys/wait.h>
 }
 #include <cstring>
 #include <algorithm>
@@ -24,24 +23,6 @@ extern "C" {
 using namespace std;
 bool WindowManager::wm_detected_;
 mutex WindowManager::wm_detected_mutex_;
-static char const* menu_labels[] = {"Raise window", 
-    "Lower window", "Move window", "Resize window", 
-    "Circulate windows (down)", "Circulate windows (up)",
-    "Focus keyboard", "XTERM!", "Exit LightWM",};
-
-XFontStruct *font_info;
-int screen_num;
-Window focus_window;
-Window inverted_pane = NONE;
-Window panes[MAX_PANES];
-GC gc, rgc;
-unsigned int button;
-Bool owner_events;
-int pointer_mode, keyboard_mode;
-Window assoc_win, confine_to;
-int char_count, winindex;
-Window menuwin;
-const char* icon_name = "Constant icon name";
 
 unique_ptr<WindowManager> WindowManager::Create(const string& display_str) {
 	const char* display_c_str = display_str.empty() ? nullptr : display_str.c_str();
@@ -69,57 +50,12 @@ void WindowManager::Run() {
         lock_guard<mutex> lock(wm_detected_mutex_);
         wm_detected_ = false;
         XSetErrorHandler(&WindowManager::OnWMDetected);
-        XSelectInput(display_handle, root_handle, SubstructureNotifyMask);
+        XSelectInput(display_handle, root_handle, SubstructureRedirectMask | SubstructureNotifyMask);
         XSync(display_handle, false);
         if (wm_detected_) {//change this reference style
             cerr << "There is already a window manager for display " << XDisplayString(display_handle);
             return;
         }
-    }
-
-
-    int menu_width, menu_height, x = 0, y = 0, border_width = 4, pane_height, direction, ascent, descent;
-    char const* font_name = "9x15";
-    char const* strbuf;
-    
-    font_info = XLoadQueryFont(display_handle, font_name);
-    if (font_info == NULL)
-    {
-        cerr << "Failed to load font." << endl;
-        exit(-1);
-    }
-    strbuf = menu_labels[6];
-    XCharStruct overall;
-    
-    char_count = strlen(strbuf);
-    XTextExtents(font_info, strbuf, char_count, &direction, &ascent, &descent, &overall);
-    menu_width = overall.width + 4;
-    pane_height = overall.ascent + overall.descent + 4;
-    menu_height = pane_height + MAX_PANES;
-
-    screen_num = DefaultScreen(display_handle);
-    x = DisplayWidth(display_handle,screen_num);
-    y = 0;
-    menuwin = XCreateSimpleWindow(display_handle, RootWindow(display_handle, screen_num), x, y, menu_width, menu_height, border_width, BlackPixel(display_handle,screen_num), WhitePixel(display_handle, screen_num));
-    for (winindex = 0; winindex < MAX_PANES; winindex++)
-    {
-        panes[winindex] = XCreateSimpleWindow(display_handle, menuwin, 0, menu_height, menu_width, pane_height, border_width = 1, BlackPixel(display_handle, screen_num), WhitePixel(display_handle, screen_num));
-        XSelectInput(display_handle, panes[winindex], ButtonPressMask | ButtonReleaseMask | ExposureMask);
-    }
-    XSelectInput(display_handle, RootWindow(display_handle, screen_num), SubstructureNotifyMask);
-    XMapSubwindows(display_handle, menuwin);
-    focus_window = RootWindow(display_handle, screen_num);
-    //Create two graphics contexts for inverting pane colors
-    gc = XCreateGC(display_handle, RootWindow(display_handle, screen_num), 0, NULL);
-    XSetForeground(display_handle, gc, BlackPixel(display_handle, screen_num));
-    rgc = XCreateGC(display_handle, RootWindow(display_handle, screen_num), 0, NULL);
-    XSetForeground(display_handle, rgc, WhitePixel(display_handle, screen_num));
-    //Frame(menuwin);
-    XMapWindow(display_handle, menuwin);
-    //force the child process to disinherit the TCP fd (for New Xterm exec call)
-    if ((fcntl(ConnectionNumber(display_handle), F_SETFD, 1)) == -1)
-    {
-        cerr << "Error: LightWM child cannot disinherit TCP fd" << endl;
     }
 
     XSetErrorHandler(&WindowManager::OnXError);
@@ -146,7 +82,6 @@ void WindowManager::Run() {
 
     while(1) {
         XEvent event;
-        cout << "Waiting for next event" << endl;
         XNextEvent(display_handle, &event);
         cout << "Event: \"" << ToString(event) << "\" occurred." << endl;
         switch (event.type) {
@@ -175,7 +110,7 @@ void WindowManager::Run() {
                 OnConfigureRequest(event.xconfigurerequest);
                 break;
             case ButtonPress:
-                OnButtonPress(event);
+                OnButtonPress(event.xbutton);
                 break;
             case MotionNotify:
                 while (XCheckTypedWindowEvent(display_handle, event.xmotion.window, MotionNotify, &event)) {}
@@ -187,26 +122,8 @@ void WindowManager::Run() {
             case KeyRelease:
                 OnKeyRelease(event.xkey);
                 break;
-            case Expose:
-                //if (isIcon(event.xexpose.window, event.xexpose.x, event.xexpose.y, &assoc_win, icon_name, False))
-                //{
-                    XDrawString(display_handle, event.xexpose.window, gc, 2, ascent+2, icon_name, strlen(icon_name));
-                //}
-                //else
-                //{
-                    if (inverted_pane == event.xexpose.window)
-                    {
-                        paint_pane(event.xexpose.window, panes, gc, rgc,BLACK);
-                    }
-                    else
-                    {
-                        paint_pane(event.xexpose.window, panes, gc, rgc, WHITE);
-                    }
-                //}
-                break;
             default:
                 cerr << "Warning: Event ignored" << endl;
-                break;
         }
     }
 }
@@ -230,14 +147,13 @@ void WindowManager::Frame(Window w) {
     XSelectInput(display_handle, frame, SubstructureRedirectMask | SubstructureNotifyMask);
     XAddToSaveSet(display_handle, w);
     XReparentWindow(display_handle, w, frame, 0, 0);
-    
     XMapWindow(display_handle, frame);
     
     clients_handle[w] = frame;
     /* Hotkeys defined */
-    XGrabButton(display_handle, Button1, Mod1Mask, w, false, ButtonPressMask | ButtonReleaseMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None, None);
-    XGrabButton(display_handle, Button3, Mod1Mask, w, false, ButtonPressMask | ButtonReleaseMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None, None);
+    XGrabButton(display_handle, Button1, Mod1Mask, w, false, ButtonPressMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None, None);
     XGrabKey(display_handle, XKeysymToKeycode(display_handle, XK_Q), Mod1Mask, w, false, GrabModeAsync, GrabModeAsync);
+    XGrabKey(display_handle, XKeysymToKeycode(display_handle, XK_Return), Mod1Mask, w, false, GrabModeAsync, GrabModeAsync);
     XGrabKey(display_handle, XKeysymToKeycode(display_handle, XK_Tab), Mod1Mask, w, false, GrabModeAsync, GrabModeAsync);
 }
 
@@ -292,12 +208,13 @@ void WindowManager::OnConfigureRequest(const XConfigureRequestEvent &event) {
     cerr << "Window resized to " << Size<int>(event.width, event.height);
 }
 
-void WindowManager::OnButtonPress(XEvent &event) {
-    if (clients_handle.count(event.xbutton.window) == 0) {
+void WindowManager::OnButtonPress(const XButtonEvent &event) {
+    //CHECK(clients_handle.count(event.window));
+    if (clients_handle.count(event.window) == 0) {
         cerr << "Client count for the event's window did not pass assertion (>0)" << endl;
     }
-    const Window frame = clients_handle[event.xbutton.window];
-    drag_start_pos_ = Position<int>(event.xbutton.x_root, event.xbutton.y_root);
+    const Window frame = clients_handle[event.window];
+    drag_start_pos_ = Position<int>(event.x_root, event.y_root);
     Window returned_root;
     int x, y;
     unsigned width, height, border_width, depth;
@@ -307,76 +224,6 @@ void WindowManager::OnButtonPress(XEvent &event) {
     drag_start_frame_pos_ = Position<int>(x, y);
     drag_start_frame_size_ = Size<int>(width, height);
     XRaiseWindow(display_handle, frame);
-    paint_pane(event.xbutton.window, panes, gc, rgc, BLACK);
-    button = event.xbutton.button;
-    inverted_pane = event.xbutton.window;
-    while (1)
-    {
-        while(XCheckTypedEvent(display_handle, ButtonPress, &event));
-        XMaskEvent(display_handle, ButtonReleaseMask, &event);
-        if (event.xbutton.button == button)
-        {
-            break;
-        }
-    }
-    owner_events = true;
-    pointer_mode = GrabModeAsync;
-    keyboard_mode = GrabModeAsync;
-    confine_to = None;
-    XGrabPointer(display_handle, menuwin, owner_events, ButtonPressMask | ButtonReleaseMask, pointer_mode, keyboard_mode, confine_to, None, CurrentTime);
-    if (inverted_pane == event.xbutton.window)
-    {
-        for (winindex = 0; inverted_pane != panes[winindex]; winindex++)
-        {
-            ;
-        }
-        char* xterm;
-        strcpy(xterm, "xterm&");
-        switch(winindex) {
-            case 0:
-                raise_lower(menuwin, RAISE);
-                break;
-            case 1:
-                raise_lower(menuwin, LOWER);
-                break;
-            case 2:
-                //move_resize(menuwin, MOVE);
-                break;
-            case 3:
-                //move_resize(menuwin, RESIZE);
-                break;
-            case 4:
-                circup(menuwin);
-                break;
-            case 5:
-                circdown(menuwin);
-                break;
-            case 6:
-                //iconify(menuwin);
-                break;
-            case 7:
-                //focus_window = focus(menuwin);
-                break;
-            case 8:
-                execute(xterm);
-                break;
-            case 9:
-                //exit
-                XSetInputFocus(display_handle, RootWindow(display_handle, screen_num), RevertToPointerRoot, CurrentTime);
-                XClearWindow(display_handle, RootWindow(display_handle, screen_num));
-                XFlush(display_handle);
-                XCloseDisplay(display_handle);
-                exit(1);
-            default:
-                cerr << "Something bad happened." << endl;
-                break;
-        }//end switch
-    }//end if inverted_pane
-    paint_pane(event.xbutton.window, panes, gc, rgc, WHITE);
-    inverted_pane = NONE;
-    //draw_focus_frame();
-    XUngrabPointer(display_handle, CurrentTime);
-    XFlush(display_handle);
 }
 
 void WindowManager::OnButtonRelease(const XButtonEvent &event) {}
@@ -420,23 +267,13 @@ void WindowManager::OnKeyPress(const XKeyEvent &e) {
             cerr << "Killing window " << e.window << endl;
             XKillClient(display_handle, e.window);
         }
-    /* example key press handle
     } 
-    else if ((e.state & Mod1Mask) && (e.keycode == XKeysymToKeycode(display_handle, XK_SOMEKEY)))
+    else if ((e.state & Mod1Mask) && (e.keycode == XKeysymToKeycode(display_handle, XK_Return)))
     {
-        auto i = clients_handle.find(e.window);
-        if (i == clients_handle.end())
-        {
-            cerr << "Assertion failed, window not found." << endl;
-        }
-        ++i;//go to next window
-        if (i == clients_handle.end()) {
-            i = clients_handle.begin();
-        }
-        XRaiseWindow(display_handle, i->second);
-        XSetInputFocus(display_handle, i->first, RevertToPointerRoot, CurrentTime);
-    
-    */
+        char xterm[6];
+        strcpy(xterm, "xterm&");
+        execute(xterm);
+
     } else if ((e.state & Mod1Mask) && (e.keycode == XKeysymToKeycode(display_handle, XK_Tab))) {
         auto i = clients_handle.find(e.window);
         //CHECK(i != clients_handle.end());
@@ -476,83 +313,9 @@ int WindowManager::OnWMDetected(Display* display, XErrorEvent *e) {
     return 0;
 }
 
-void WindowManager::paint_pane(Window window, Window panes[], GC ngc, GC rgc, int mode)
-{
-    int win;
-    int x = 2;
-    int y;
-    GC gc;
-    if (mode == BLACK)
-    {
-        XSetWindowBackground(display_handle, window, BlackPixel(display_handle, screen_num));
-        gc = rgc;
-    }
-    else
-    {
-        XSetWindowBackground(display_handle, window, WhitePixel(display_handle, screen_num));
-        gc = ngc;
-    }
-    XClearWindow(display_handle, window);
-    for (win = 0; window != panes[win]; win++)
-    {
-        ;
-    }
-    y = font_info->max_bounds.ascent;
-    XDrawString(display_handle, window, gc, x, y, menu_labels[win], strlen(menu_labels[win]));
-}
-
-void WindowManager::circup(Window menuwin)
-{
-    XCirculateSubwindowsUp(display_handle, RootWindow(display_handle, screen_num));
-    XRaiseWindow(display_handle, menuwin);
-}
-
-void WindowManager::circdown(Window menuwin)
-{
-    XCirculateSubwindowsDown(display_handle, RootWindow(display_handle, screen_num));
-    XRaiseWindow(display_handle, menuwin);
-}
-
-void WindowManager::raise_lower(Window menuwin, Bool raise_or_lower)
-{
-    XEvent report;
-    int root_x,root_y;
-    Window child, root;
-    int win_x, win_y;
-    unsigned int mask;
-    unsigned int button;
-
-    XMaskEvent(display_handle, ButtonPressMask, &report);
-    button = report.xbutton.button;
-    XQueryPointer(display_handle, RootWindow(display_handle, screen_num), &root, &child, &root_x, &root_y, &win_x, &win_y, &mask);
-    if (child != 0)
-    {
-        if (raise_or_lower == RAISE)
-        {
-            XRaiseWindow(display_handle, child);
-        }
-        else
-        {
-            XLowerWindow(display_handle, child);
-        }
-        XRaiseWindow(display_handle, menuwin);
-    }
-    while(1)
-    {
-        XMaskEvent(display_handle, ButtonReleaseMask, &report);
-        if (report.xbutton.button == button)
-        {
-            break;
-        }
-    }
-    while(XCheckMaskEvent(display_handle, ButtonReleaseMask | ButtonPressMask, &report)) {
-        ;
-    }
-    
-}
-
 int WindowManager::execute(char *s)
 {
+    cout << "inside execute:" << endl;
     int status, pid, w;
     void (*istat)(int), (*qstat)(int);
     if ((pid = vfork()) == 0) {

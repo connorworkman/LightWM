@@ -32,22 +32,14 @@ class WindowManager {
 		void OnConfigureNotify(const XConfigureEvent& event);
 		void OnMapRequest(const XMapRequestEvent& event);
 		void OnConfigureRequest(const XConfigureRequestEvent& event);
-		void OnButtonPress(XEvent& event);
+		void OnButtonPress(const XButtonEvent& event);
 		void OnButtonRelease(const XButtonEvent& event);
 		void OnMotionNotify(const XMotionEvent& event);
-
-        void paint_pane(Window window, Window panes[], GC ngc, GC rgc, int mode);
-        void circup(Window window);
-        void circdown(Window window);
-        void raise_lower(Window menuwin, Bool raise_or_lower);
         int execute(char *s);
-
-
-        static int OnXError(Display* display, XErrorEvent* event);
+		static int OnXError(Display* display, XErrorEvent* event);
 		static int OnWMDetected(Display* display, XErrorEvent* event);
 		static bool wm_detected_;
         static mutex wm_detected_mutex_;
-
 		Display* display_handle;
 		const Window root_handle;
 		unordered_map<Window, Window> clients_handle;

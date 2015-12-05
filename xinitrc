@@ -1,5 +1,5 @@
 xeyes &
-xclock -d &
+xclock -d -geometry 290x20+400+0 &
 xterm &
 sleep 2 &&
-exec ~/LIGHTWM/lightwm
+exec ~/lightwm/lightwm
