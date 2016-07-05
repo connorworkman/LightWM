@@ -130,8 +130,8 @@ void WindowManager::Run() {
 
 void WindowManager::Frame(Window w) {
     const unsigned int BORDER_WIDTH = 1;
-    const unsigned long BORDER_COLOR = 0xffffaa;
-    const unsigned long BG_COLOR = 0xffffff;
+    const unsigned long BORDER_COLOR = 0x000000;
+    const unsigned long BG_COLOR = 0x000000;
     if (clients_handle.count(w)) {
         cerr << "Aborting." << endl;
         exit(-1);
